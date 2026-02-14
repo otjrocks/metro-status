@@ -352,24 +352,19 @@ class MetroStatusPlugin(BasePlugin):
             else:
                 self.scroll_offset = 0
             
-            # Only update display if data changed or scroll offset changed
-            scroll_changed = self.last_scroll_offset != self.scroll_offset
-            
-            if not data_changed and not scroll_changed and not force_clear:
-                return {"station": self.reference_station, "trains": []}
+            # Always update display for scrolling animation (don't skip even if data hasn't changed)
+            # The scroll offset changes every frame, so we always render
             
             # Clear display for new content
             self.display_manager.clear()
             
             # Display station header with ellipsis if too long
-            station_prefix = "Stn: "
             station_name = self.reference_station.title()
             station_font = self.display_manager.small_font
             
             # Calculate available width for station name
             max_station_width = display_width - 10
-            station_label_width = self.display_manager.get_text_width(station_prefix, station_font)
-            available_for_name = max_station_width - station_label_width
+            available_for_name = max_station_width
             
             # Truncate station name with ellipsis if needed
             truncated_name = station_name
@@ -379,7 +374,7 @@ class MetroStatusPlugin(BasePlugin):
             if len(truncated_name) < len(station_name):
                 truncated_name = truncated_name[:-2] + ".." if len(truncated_name) > 2 else ".."
             
-            station_display = station_prefix + truncated_name
+            station_display = truncated_name
             self.display_manager.draw_text(
                 station_display,
                 x=0,
