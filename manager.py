@@ -400,7 +400,7 @@ class MetroStatusPlugin(BasePlugin):
                 station_display,
                 x=0,
                 y=0,
-                color=(255, 255, 255),
+                color=(173, 216, 230),
                 small_font=True
             )
             
