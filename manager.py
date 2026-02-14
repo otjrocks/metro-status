@@ -520,7 +520,7 @@ class MetroStatusPlugin(BasePlugin):
                     minutes_str,
                     x=minutes_x,
                     y=y_pos,
-                    color=color,
+                    color=(255, 255, 255),
                     small_font=True
                 )
             
