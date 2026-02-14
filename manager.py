@@ -93,60 +93,6 @@ LINE_CODES = {
     "YL": {"name": "Yellow", "color": (255, 255, 0)},
 }
 
-# Destination name mappings to shorten long names for display
-DESTINATION_OVERRIDES = {
-    "vienna/fairfax gmu": "Vienna",
-    "shady grove": "Shady Grove",
-    "glenmont": "Glenmont",
-    "downtown largo town ctr": "Largo",
-    "largo town center": "Largo",
-    "branch avenue": "Branch Ave",
-    "naylor road": "Naylor Rd",
-    "suitland": "Suitland",
-    "navy yard-ballpark": "Navy Yard",
-    "anacostia": "Anacostia",
-    "congressional center": "Congress",
-    "southern avenue": "S. Avenue",
-    "noma-gallaudet u": "NoMa",
-    "fort totten": "Ft. Totten",
-    "takoma": "Takoma",
-    "silver spring": "Silver Spg",
-    "forest glen": "Forest Glen",
-    "wheaton": "Wheaton",
-    "glenmont": "Glenmont",
-    "bethesda": "Bethesda",
-    "medical center": "Med. Ctr",
-    "friendship heights": "Friendship",
-    "tenleytown": "Tenleytown",
-    "van ness-udc": "Van Ness",
-    "farragut north": "Farragut N",
-    "farragut west": "Farragut W",
-    "dupont circle": "Dupont",
-    "woodley park": "Woodley Pk",
-    "cleveland park": "Cleveland",
-    "clarendon": "Clarendon",
-    "virginia square": "Va Sq",
-    "ballston": "Ballston",
-    "west falls church": "W Falls Cr",
-    "east falls church": "E Falls Cr",
-    "falls church": "Falls Chc",
-    "metro center": "Metro Ctr",
-    "gallery place": "Gallery Pl",
-    "archives": "Archives",
-    "judiciary square": "Judiciary",
-    "union station": "Union Sta",
-    "rhode island ave": "Rhode Is",
-    "brookland-cua": "Brookland",
-    "waterfront": "Waterfront",
-    "l'enfant plaza": "L'Enfant",
-    "capitol south": "Capitol S",
-    "eastern market": "E. Market",
-    "potomac ave": "Potomac",
-    "stadium-armory": "Stadium",
-    "minnesota ave": "Minnesota",
-    "deanwood": "Deanwood",
-}
-
 class BasePlugin:
     """Base class for all plugins - placeholder for local testing"""
     def __init__(self, plugin_id: str, config: Dict[str, Any], 
@@ -226,19 +172,6 @@ class MetroStatusPlugin(BasePlugin):
     def _get_line_color(self, line_code: str) -> tuple:
         """Get RGB color for line"""
         return LINE_CODES.get(line_code, {}).get("color", (255, 255, 255))
-    
-    def _get_short_destination_name(self, destination: str) -> str:
-        """Get shortened display name for destination"""
-        destination_lower = destination.lower().strip()
-        # Check for exact match in overrides
-        if destination_lower in DESTINATION_OVERRIDES:
-            return DESTINATION_OVERRIDES[destination_lower]
-        # Check for partial match
-        for key, value in DESTINATION_OVERRIDES.items():
-            if key in destination_lower:
-                return value
-        # Return original if no match found
-        return destination
     
     def _fetch_arrivals(self) -> bool:
         """Fetch real-time train arrival data from WMATA API"""
@@ -359,6 +292,9 @@ class MetroStatusPlugin(BasePlugin):
         # Default to east if destination is unclear
         return "east"
     
+    def _get_short_destination_name(self, destination: str) -> str:
+        """Return destination name as-is"""
+        return destination.strip()
     
     def update(self) -> None:
         """Update train arrival data from WMATA API."""
@@ -484,7 +420,7 @@ class MetroStatusPlugin(BasePlugin):
                 y_pos = y_offset + (i * line_height) - self.scroll_offset
                 
                 # Only draw if visible on screen and below the header (clipping)
-                if y_pos + line_height < header_height or y_pos > display_height:
+                if y_pos < header_height or y_pos >= display_height:
                     continue
                 
                 destination = train["destination"]
