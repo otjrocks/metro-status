@@ -422,12 +422,12 @@ class MetroStatusPlugin(BasePlugin):
                 separator_str = "/"
                 total_pages_str = str(total_pages)
                 
-                # Draw current page in cyan
+                # Draw current page in softer cyan
                 self.display_manager.draw_text(
                     current_page_str,
                     x=page_x,
                     y=0,
-                    color=(0, 255, 255),
+                    color=(100, 200, 200),
                     small_font=True
                 )
                 
@@ -448,12 +448,12 @@ class MetroStatusPlugin(BasePlugin):
                 separator_width = self.display_manager.get_text_width(separator_str, station_font)
                 total_x = sep_x + separator_width
                 
-                # Draw total pages in yellow
+                # Draw total pages in soft gray
                 self.display_manager.draw_text(
                     total_pages_str,
                     x=total_x,
                     y=0,
-                    color=(255, 255, 0),
+                    color=(150, 150, 150),
                     small_font=True
                 )
             
