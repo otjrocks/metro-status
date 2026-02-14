@@ -151,6 +151,7 @@ class MetroStatusPlugin(BasePlugin):
         self.scroll_offset = 0  # Vertical scroll offset in pixels
         self.last_rendered_data = None  # Track last rendered data to detect changes
         self.last_scroll_offset = None  # Track last scroll offset to detect scroll changes
+        self._scroll_frame_counter = 0  # Counter to slow down scroll updates
         
         # WMATA API endpoint
         self.predictions_api_url = "https://api.wmata.com/StationPrediction.svc/json/GetPrediction"
@@ -346,11 +347,15 @@ class MetroStatusPlugin(BasePlugin):
                 visible_height = display_height - header_height - 2
                 max_scroll = max(0, total_train_height - visible_height)
                 
-                # Scroll at normal speed for slower scrolling
-                if not hasattr(self, '_scroll_step'):
-                    self._scroll_step = 0
-                
-                self._scroll_step += line_height * 3
+                # Only update scroll every 6 calls for slower refresh rate
+                self._scroll_frame_counter += 1
+                if self._scroll_frame_counter >= 6:
+                    self._scroll_frame_counter = 0
+                    if not hasattr(self, '_scroll_step'):
+                        self._scroll_step = 0
+                    
+                    # Scroll 3 lines per refresh
+                    self._scroll_step += line_height * 3
                 
                 # Wrap around with no blank lines after all trains have scrolled through
                 cycle_period = total_train_height
