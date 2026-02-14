@@ -416,11 +416,44 @@ class MetroStatusPlugin(BasePlugin):
             # Draw page number on the right if there are multiple pages
             if page_text:
                 page_x = display_width - page_text_width - right_margin
+                
+                # Draw components with different colors
+                current_page_str = str(current_page)
+                separator_str = "/"
+                total_pages_str = str(total_pages)
+                
+                # Draw current page in cyan
                 self.display_manager.draw_text(
-                    page_text,
+                    current_page_str,
                     x=page_x,
                     y=0,
                     color=(0, 255, 255),
+                    small_font=True
+                )
+                
+                # Calculate position for separator
+                current_page_width = self.display_manager.get_text_width(current_page_str, station_font)
+                sep_x = page_x + current_page_width
+                
+                # Draw separator in white
+                self.display_manager.draw_text(
+                    separator_str,
+                    x=sep_x,
+                    y=0,
+                    color=(255, 255, 255),
+                    small_font=True
+                )
+                
+                # Calculate position for total pages
+                separator_width = self.display_manager.get_text_width(separator_str, station_font)
+                total_x = sep_x + separator_width
+                
+                # Draw total pages in yellow
+                self.display_manager.draw_text(
+                    total_pages_str,
+                    x=total_x,
+                    y=0,
+                    color=(255, 255, 0),
                     small_font=True
                 )
             
