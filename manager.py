@@ -87,7 +87,7 @@ STATION_CODES = {
 LINE_CODES = {
     "RD": {"name": "Red", "color": (255, 0, 0)},
     "BL": {"name": "Blue", "color": (0, 0, 255)},
-    "SV": {"name": "Silver", "color": (192, 192, 192)},
+    "SV": {"name": "Silver", "color": (145, 145, 145)},
     "OR": {"name": "Orange", "color": (255, 165, 0)},
     "GR": {"name": "Green", "color": (0, 128, 0)},
     "YL": {"name": "Yellow", "color": (255, 255, 0)},
@@ -335,23 +335,43 @@ class MetroStatusPlugin(BasePlugin):
                 self.display_manager.update_display()
                 return {"station": self.reference_station, "trains": []}
             
+            # Get display dimensions for proper positioning
+            display_width = self.display_manager.width
+            display_height = self.display_manager.height
+            
             # Display up to 3 trains with times on right
             y_offset = 10
             line_height = 8
-            max_dest_width = 18
+            max_dest_width = 16
             
             for i, train in enumerate(self.train_data[:3]):
                 destination = train["destination"][:max_dest_width]
-                minutes = train["minutes"]
+                minutes_str = str(train["minutes"])
                 color = train["color"]
                 
-                # Format with times on right: "DESTINATION    MIN"
-                display_line = f"{destination:<{max_dest_width}} {minutes:>4}"
+                # Get font for text width calculations
+                font = self.display_manager.small_font
                 
-                # Draw the train information
+                # Calculate width of minutes text
+                minutes_width = self.display_manager.get_text_width(minutes_str, font)
+                
+                # Position minutes text on the right (with small margin)
+                right_margin = 2
+                minutes_x = display_width - minutes_width - right_margin
+                
+                # Draw destination on the left
                 self.display_manager.draw_text(
-                    display_line,
+                    destination,
                     x=0,
+                    y=y_offset + (i * line_height),
+                    color=color,
+                    small_font=True
+                )
+                
+                # Draw minutes on the right
+                self.display_manager.draw_text(
+                    minutes_str,
+                    x=minutes_x,
                     y=y_offset + (i * line_height),
                     color=color,
                     small_font=True
