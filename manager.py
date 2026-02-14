@@ -118,9 +118,6 @@ class MetroStatusPlugin(BasePlugin):
         refresh_interval (int): How often to refresh train data in seconds (default: 30)
         page_display_time (int): How long to display each direction in seconds (default: 10)
         display_options (dict): Fine-grained control over text display behavior
-            - show_line_abbreviation: Show train line abbreviation (default: True)
-            - scroll_long_destinations: Scroll long destination names (default: True)
-            - scroll_speed: Text scroll speed divisor (default: 5)
     """
 
     def __init__(self, plugin_id: str, config: Dict[str, Any],
@@ -614,10 +611,6 @@ class MetroStatusPlugin(BasePlugin):
         
         if not (5 <= self.page_display_time <= 60):
             self.logger.error("Page display time must be between 5 and 60 seconds")
-            return False
-        
-        if not (1 <= self.scroll_speed <= 20):
-            self.logger.error("Scroll speed must be between 1 and 20")
             return False
         
         return True
