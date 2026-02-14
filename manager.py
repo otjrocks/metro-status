@@ -223,7 +223,7 @@ class MetroStatusPlugin(BasePlugin):
             # Process trains in order - get all of them for scrolling
             for train in trains:
                 # Get train information
-                destination_name = train.get("DestinationName", "").strip()
+                destination_name = train.get("Destination", "").strip()
                 line = train.get("Line", "")
                 minutes = train.get("Min", "")
                 
@@ -352,9 +352,9 @@ class MetroStatusPlugin(BasePlugin):
                 
                 self._scroll_step += line_height
                 
-                # Wrap around as soon as all trains have scrolled through
-                # This prevents blank space at the end
-                cycle_period = total_train_height
+                # Wrap around tightly after all trains have scrolled through
+                # Subtract one line_height to avoid blank lines at the transition
+                cycle_period = max(line_height, total_train_height - line_height)
                 if cycle_period > 0:
                     self.scroll_offset = int(self._scroll_step % cycle_period)
                 else:
