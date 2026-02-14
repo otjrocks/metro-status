@@ -313,8 +313,30 @@ class MetroStatusPlugin(BasePlugin):
             # Clear display for new content
             self.display_manager.clear()
             
-            # Display station header
-            station_display = f"Stn: {self.reference_station.title()[:16]}"
+            # Get display dimensions for proper positioning
+            display_width = self.display_manager.width
+            display_height = self.display_manager.height
+            
+            # Display station header with ellipsis if too long
+            station_prefix = "Stn: "
+            station_name = self.reference_station.title()
+            # Use smaller font for header to save space
+            station_font = self.display_manager.small_font
+            
+            # Calculate available width for station name (leave margin for later)
+            max_station_width = display_width - 10  # Small margin
+            station_label_width = self.display_manager.get_text_width(station_prefix, station_font)
+            available_for_name = max_station_width - station_label_width
+            
+            # Truncate station name with ellipsis if needed
+            truncated_name = station_name
+            while self.display_manager.get_text_width(truncated_name, station_font) > available_for_name and len(truncated_name) > 1:
+                truncated_name = truncated_name[:-1]
+            
+            if len(truncated_name) < len(station_name):
+                truncated_name = truncated_name[:-2] + ".." if len(truncated_name) > 2 else ".."
+            
+            station_display = station_prefix + truncated_name
             self.display_manager.draw_text(
                 station_display,
                 x=0,
@@ -328,40 +350,47 @@ class MetroStatusPlugin(BasePlugin):
                 self.display_manager.draw_text(
                     "NO DATA",
                     x=5,
-                    y=16,
+                    y=10,
                     color=(255, 128, 0),
                     small_font=True
                 )
                 self.display_manager.update_display()
                 return {"station": self.reference_station, "trains": []}
             
-            # Get display dimensions for proper positioning
-            display_width = self.display_manager.width
-            display_height = self.display_manager.height
+            # Use smaller font for train display to fit more rows
+            train_font = self.display_manager.small_font
             
-            # Display up to 3 trains with times on right
-            y_offset = 10
-            line_height = 8
-            max_dest_width = 16
+            # Display up to 4 trains with times on right (adjusted line height for smaller font)
+            y_offset = 8
+            line_height = 6
             
-            for i, train in enumerate(self.train_data[:3]):
-                destination = train["destination"][:max_dest_width]
+            for i, train in enumerate(self.train_data[:4]):
+                destination = train["destination"]
                 minutes_str = str(train["minutes"])
                 color = train["color"]
                 
-                # Get font for text width calculations
-                font = self.display_manager.small_font
-                
                 # Calculate width of minutes text
-                minutes_width = self.display_manager.get_text_width(minutes_str, font)
+                minutes_width = self.display_manager.get_text_width(minutes_str, train_font)
                 
                 # Position minutes text on the right (with small margin)
                 right_margin = 2
                 minutes_x = display_width - minutes_width - right_margin
                 
+                # Calculate max width available for destination to avoid overlap
+                spacing = 2
+                max_dest_available = minutes_x - spacing
+                
+                # Truncate destination if it would overlap with minutes
+                truncated_dest = destination
+                while self.display_manager.get_text_width(truncated_dest, train_font) > max_dest_available and len(truncated_dest) > 1:
+                    truncated_dest = truncated_dest[:-1]
+                
+                if len(truncated_dest) < len(destination):
+                    truncated_dest = truncated_dest[:-2] + ".." if len(truncated_dest) > 2 else ".."
+                
                 # Draw destination on the left
                 self.display_manager.draw_text(
-                    destination,
+                    truncated_dest,
                     x=0,
                     y=y_offset + (i * line_height),
                     color=color,
