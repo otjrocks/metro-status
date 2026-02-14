@@ -346,14 +346,15 @@ class MetroStatusPlugin(BasePlugin):
                 visible_height = display_height - header_height - 2
                 max_scroll = max(0, total_train_height - visible_height)
                 
-                # Scroll even faster: increment by 2.0 pixels per call
+                # Scroll one line per refresh for smooth, clean scrolling
                 if not hasattr(self, '_scroll_step'):
                     self._scroll_step = 0
                 
-                self._scroll_step += 2.0
+                self._scroll_step += line_height
                 
-                # Create a loop that scrolls through all trains
-                cycle_period = max_scroll + line_height
+                # Wrap around as soon as all trains have scrolled through
+                # This prevents blank space at the end
+                cycle_period = total_train_height
                 if cycle_period > 0:
                     self.scroll_offset = int(self._scroll_step % cycle_period)
                 else:
