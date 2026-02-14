@@ -154,6 +154,14 @@ class MetroStatusPlugin(BasePlugin):
         self.predictions_api_url = "https://api.wmata.com/StationPrediction.svc/json/GetPrediction"
         
         self.logger.info(f"Metro Status plugin initialized for station: {self.reference_station}")
+        self.logger.info(f"Configuration: refresh={self.refresh_interval}s, page_time={self.page_display_time}s")
+        
+        # Perform initial data fetch
+        try:
+            self._fetch_arrivals()
+            self.logger.info("Initial train data fetch completed")
+        except Exception as e:
+            self.logger.warning(f"Initial fetch failed (will retry): {e}")
     
     def _get_station_code(self, station_name: str) -> str:
         """Get WMATA station code from station name"""
@@ -177,13 +185,18 @@ class MetroStatusPlugin(BasePlugin):
                 "Cache-Control": "no-cache"
             }
             
+            self.logger.debug(f"Fetching arrivals from {url}")
             response = requests.get(url, headers=headers, timeout=5)
             response.raise_for_status()
             data = response.json()
             
+            # Log raw response for debugging
+            self.logger.debug(f"API response: {data}")
+            
             # Parse arrival data and separate by direction
             self._parse_arrivals(data)
             self.last_update = datetime.now()
+            self.logger.info(f"Successfully fetched train data for {self.reference_station}")
             return True
             
         except requests.RequestException as e:
@@ -191,6 +204,9 @@ class MetroStatusPlugin(BasePlugin):
             return False
         except json.JSONDecodeError as e:
             self.logger.error(f"Failed to parse API response: {e}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error fetching arrivals: {e}", exc_info=True)
             return False
     
     def _parse_arrivals(self, data: Dict[str, Any]) -> None:
@@ -200,6 +216,7 @@ class MetroStatusPlugin(BasePlugin):
             self.train_data = {"east": [], "west": []}
             
             trains = data.get("Trains", [])
+            self.logger.debug(f"Processing {len(trains)} trains from API")
             
             for train in trains:
                 # Get destination name and line
@@ -231,8 +248,10 @@ class MetroStatusPlugin(BasePlugin):
                 # Add to appropriate direction (limit to 3 trains per direction)
                 if direction == "east" and len(self.train_data["east"]) < 3:
                     self.train_data["east"].append(train_info)
+                    self.logger.debug(f"Added eastbound: {destination_name} - {minutes_display}")
                 elif direction == "west" and len(self.train_data["west"]) < 3:
                     self.train_data["west"].append(train_info)
+                    self.logger.debug(f"Added westbound: {destination_name} - {minutes_display}")
             
             # Fill empty slots with placeholder data
             for direction in ["east", "west"]:
@@ -243,9 +262,11 @@ class MetroStatusPlugin(BasePlugin):
                         "minutes": "--",
                         "color": (255, 255, 255)
                     })
+            
+            self.logger.info(f"Parsed trains - East: {len(self.train_data['east'])}, West: {len(self.train_data['west'])}")
                     
         except Exception as e:
-            self.logger.error(f"Error parsing arrivals: {e}")
+            self.logger.error(f"Error parsing arrivals: {e}", exc_info=True)
             self.train_data = {
                 "east": [{"destination": "ERROR", "line": "", "minutes": "--", "color": (255, 255, 255)}] * 3,
                 "west": [{"destination": "ERROR", "line": "", "minutes": "--", "color": (255, 255, 255)}] * 3
@@ -311,7 +332,7 @@ class MetroStatusPlugin(BasePlugin):
             self.logger.error(f"Error updating metro status: {e}", exc_info=True)
     
     def display(self, force_clear: bool = False) -> Dict[str, Any]:
-        """Get display data for current page.
+        """Display train arrival data to the LED matrix.
         
         Args:
             force_clear: If True, clear display before rendering
@@ -320,27 +341,98 @@ class MetroStatusPlugin(BasePlugin):
             Dictionary containing display data for current direction
         """
         try:
+            if not self.enabled or not self.display_manager:
+                return {"direction": "DISABLED", "trains": []}
+            
+            # Clear display if requested
+            if force_clear:
+                self.display_manager.clear()
+            
             direction = "east" if self.current_page == 0 else "west"
             direction_label = "EASTBOUND" if self.current_page == 0 else "WESTBOUND"
             
             trains = self.train_data.get(direction, [])
             
+            # If no trains, show "No Data" message
+            if not trains or len(trains) == 0:
+                self.display_manager.clear()
+                self.display_manager.draw_text(
+                    "NO DATA",
+                    x=5,
+                    y=10,
+                    color=(255, 128, 0),
+                    small_font=True
+                )
+                self.display_manager.update_display()
+                return {"direction": direction_label, "trains": []}
+            
+            # Clear display for new content
+            self.display_manager.clear()
+            
+            # Display direction header
+            self.display_manager.draw_text(
+                direction_label,
+                x=0,
+                y=0,
+                color=(255, 255, 255),
+                small_font=True
+            )
+            
+            # Display up to 3 trains
+            y_offset = 10
+            line_height = 8
+            
+            for i, train in enumerate(trains[:3]):
+                destination = train["destination"][:20]  # Limit width
+                minutes = train["minutes"]
+                color = train["color"]
+                
+                # Format line: "DESTINATION    MIN"
+                # Build the display string
+                display_line = f"{destination:20} {minutes:>3}"
+                
+                # Draw the train information
+                self.display_manager.draw_text(
+                    display_line,
+                    x=0,
+                    y=y_offset + (i * line_height),
+                    color=color,
+                    small_font=True
+                )
+            
+            # Update the physical display
+            self.display_manager.update_display()
+            
+            # Return data for logging/debugging
             display_data = {
                 "direction": direction_label,
                 "trains": []
             }
             
-            for i, train in enumerate(trains[:3]):  # Ensure only 3 trains
+            for train in trains[:3]:
                 display_data["trains"].append({
-                    "destination": train["destination"][:17],  # Limit to 17 chars for display
+                    "destination": train["destination"],
                     "minutes": train["minutes"],
-                    "color": train["color"],
                     "line": train["line"]
                 })
             
             return display_data
+            
         except Exception as e:
-            self.logger.error(f"Error preparing display data: {e}", exc_info=True)
+            self.logger.error(f"Error displaying metro status: {e}", exc_info=True)
+            try:
+                if self.display_manager:
+                    self.display_manager.clear()
+                    self.display_manager.draw_text(
+                        "ERROR",
+                        x=5,
+                        y=15,
+                        color=(255, 0, 0),
+                        small_font=True
+                    )
+                    self.display_manager.update_display()
+            except:
+                pass
             return {"direction": "ERROR", "trains": []}
     
     def next_page(self) -> None:
