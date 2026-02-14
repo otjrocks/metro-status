@@ -457,7 +457,7 @@ class MetroStatusPlugin(BasePlugin):
                     small_font=True
                 )
             
-            # If no trains, show "No Data" message
+            # If no trains, show "No Data" message and refresh immediately
             if not self.train_data or all(t["destination"] == "NO DATA" for t in self.train_data):
                 self.display_manager.draw_text(
                     "NO DATA",
@@ -469,6 +469,10 @@ class MetroStatusPlugin(BasePlugin):
                 self.display_manager.update_display()
                 self.last_rendered_data = current_data_hash
                 self.last_scroll_offset = self.scroll_offset
+                
+                # Immediately fetch new data when no trains are available
+                self._fetch_arrivals()
+                
                 return {"station": self.reference_station, "trains": []}
             
             # Use smaller font for train display
