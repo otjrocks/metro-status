@@ -324,9 +324,12 @@ class MetroStatusPlugin(BasePlugin):
             # Station header dimensions
             header_height = 7
             
-            # Display up to 6 trains with larger line height
+            # Display trains with larger line height
             line_height = 8
-            max_visible_trains = 6
+            
+            # Calculate how many trains can actually fit on screen
+            available_height = display_height - header_height - 2
+            max_visible_trains = max(3, available_height // line_height)  # At least 3, or however many fit
             
             # Check if data or scrolling has changed
             current_data_hash = hash(tuple((t["destination"], t["minutes"]) for t in self.train_data[:max_visible_trains]))
