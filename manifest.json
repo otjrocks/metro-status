@@ -7,7 +7,7 @@
   "class_name": "MetroStatusPlugin",
   "entry_point": "manager.py",
   "display_modes": [
-    "default"
+    "arrivals"
   ],
   "category": "Transportation",
   "repository": "https://github.com/ChuckBuilds/ledmatrix-plugins",
