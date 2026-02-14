@@ -298,23 +298,6 @@ class MetroStatusPlugin(BasePlugin):
             self.logger.error(f"Error updating metro status: {e}", exc_info=True)
     
     def display(self, force_clear: bool = False) -> Dict[str, Any]:
-        """Display train arrival data to the LED matrix.
-        
-        Args:
-            force_clear: If True, clear display before rendering
-            
-        Returns:
-            Dictionary containing display data for current direction
-        """
-        try:
-            if not self.enabled or not self.display_manager:
-                return {"direction": "DISABLED", "trains": []}
-            
-            # Clear display if requested
-            if force_clear:
-                self.display_manager.clear()
-            
-    def display(self, force_clear: bool = False) -> Dict[str, Any]:
         """Display next 3 trains for the reference station.
         
         Args:
