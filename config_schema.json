@@ -2,12 +2,23 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "title": "DC Metro Status Configuration",
-  "description": "Configuration for WMATA DC Metro real-time status display",
+  "description": "Configuration for WMATA DC Metro real-time status display with live train arrivals",
   "properties": {
+    "enabled": {
+      "type": "boolean",
+      "description": "Enable or disable the DC Metro Status plugin",
+      "default": true
+    },
+    "wmata_api_key": {
+      "type": "string",
+      "title": "WMATA API Key",
+      "description": "Your WMATA API key from https://developer.wmata.com/",
+      "x-secret": true
+    },
     "reference_station": {
       "type": "string",
       "title": "Reference Station",
-      "description": "The metro station to display arrivals for (e.g., Courthouse, Metro Center, Gallery Place)",
+      "description": "The metro station to display arrivals for",
       "default": "Metro Center",
       "examples": [
         "Courthouse",
@@ -15,19 +26,18 @@
         "Gallery Place",
         "Union Station",
         "L'Enfant Plaza",
-        "Farragut West"
-      ]
-    },
-    "wmata_api_key": {
-      "type": "string",
-      "title": "WMATA API Key",
-      "description": "Your WMATA API key from https://developer.wmata.com/",
-      "pattern": "^[a-f0-9]{32}$"
+        "Farragut West",
+        "Columbia Heights",
+        "Silver Spring",
+        "Vienna",
+        "Ashburn"
+      ],
+      "ui:widget": "text"
     },
     "refresh_interval": {
       "type": "integer",
       "title": "Refresh Interval",
-      "description": "How often to refresh train data in seconds",
+      "description": "How often to refresh train data in seconds (10-300)",
       "default": 30,
       "minimum": 10,
       "maximum": 300
@@ -35,15 +45,44 @@
     "page_display_time": {
       "type": "integer",
       "title": "Page Display Time",
-      "description": "How long to display each direction page in seconds",
+      "description": "How long to display each direction page in seconds (5-60)",
       "default": 10,
       "minimum": 5,
       "maximum": 60
+    },
+    "display_options": {
+      "type": "object",
+      "title": "Display Options",
+      "description": "Fine-grained control over text display behavior",
+      "properties": {
+        "show_line_abbreviation": {
+          "type": "boolean",
+          "description": "Show train line abbreviation (RD, OR, SV, etc.)",
+          "default": true
+        },
+        "scroll_long_destinations": {
+          "type": "boolean",
+          "description": "Scroll destination names that are longer than display width",
+          "default": true
+        },
+        "scroll_speed": {
+          "type": "integer",
+          "title": "Scroll Speed",
+          "description": "Text scroll speed divisor (higher = slower, lower = faster). Range: 1-20",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 5
+        }
+      },
+      "x-propertyOrder": ["show_line_abbreviation", "scroll_long_destinations", "scroll_speed"],
+      "additionalProperties": false
     }
   },
   "required": [
-    "reference_station",
-    "wmata_api_key"
+    "enabled",
+    "wmata_api_key",
+    "reference_station"
   ],
+  "x-propertyOrder": ["enabled", "wmata_api_key", "reference_station", "refresh_interval", "page_display_time", "display_options"],
   "additionalProperties": false
 }
