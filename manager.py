@@ -292,6 +292,29 @@ class MetroStatusPlugin(BasePlugin):
     def _get_short_destination_name(self, destination: str) -> str:
         """Return destination name as-is"""
         return destination.strip()
+
+    def _truncate_for_width(self, text: str, max_width: int, font) -> str:
+        """Truncate `text` so its pixel width (using `font`) does not exceed
+        `max_width`. If truncation is necessary, append ".." and preserve the
+        start of the string (remove from the end) so leading characters are not
+        dropped unexpectedly.
+        """
+        if not text:
+            return text
+
+        # If it already fits, return as-is
+        try:
+            if self.display_manager.get_text_width(text, font) <= max_width:
+                return text
+        except Exception:
+            return text
+
+        base = text
+        # Reduce from the end until adding ellipsis fits
+        while base and self.display_manager.get_text_width(base + "..", font) > max_width:
+            base = base[:-1]
+
+        return (base + "..") if base else ".."
     
     def update(self) -> None:
         """Update train arrival data from WMATA API."""
@@ -387,15 +410,8 @@ class MetroStatusPlugin(BasePlugin):
             max_station_width = display_width - page_text_width - right_margin - spacing if page_text else display_width - 10
             available_for_name = max_station_width
             
-            # Truncate station name with ellipsis if needed
-            truncated_name = station_name
-            while self.display_manager.get_text_width(truncated_name, station_font) > available_for_name and len(truncated_name) > 1:
-                truncated_name = truncated_name[:-1]
-            
-            if len(truncated_name) < len(station_name):
-                truncated_name = truncated_name[:-2] + ".." if len(truncated_name) > 2 else ".."
-            
-            station_display = truncated_name
+            # Truncate station name with ellipsis if needed (preserve leading text)
+            station_display = self._truncate_for_width(station_name, available_for_name, station_font)
             self.display_manager.draw_text(
                 station_display,
                 x=0,
@@ -498,13 +514,8 @@ class MetroStatusPlugin(BasePlugin):
                 spacing = 2
                 max_dest_available = minutes_x - spacing
                 
-                # Truncate destination if it would overlap with minutes
-                truncated_dest = short_dest
-                while self.display_manager.get_text_width(truncated_dest, train_font) > max_dest_available and len(truncated_dest) > 1:
-                    truncated_dest = truncated_dest[:-1]
-                
-                if len(truncated_dest) < len(short_dest):
-                    truncated_dest = truncated_dest[:-2] + ".." if len(truncated_dest) > 2 else ".."
+                # Truncate destination if it would overlap with minutes (preserve leading text)
+                truncated_dest = self._truncate_for_width(short_dest, max_dest_available, train_font)
                 
                 # Draw destination on the left
                 self.display_manager.draw_text(
