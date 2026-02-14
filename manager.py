@@ -152,6 +152,7 @@ class MetroStatusPlugin(BasePlugin):
         self.last_rendered_data = None  # Track last rendered data to detect changes
         self.last_scroll_offset = None  # Track last scroll offset to detect scroll changes
         self._scroll_frame_counter = 0  # Counter to slow down scroll updates
+        self._scroll_step = 0  # Scroll position counter
         
         # WMATA API endpoint
         self.predictions_api_url = "https://api.wmata.com/StationPrediction.svc/json/GetPrediction"
@@ -217,6 +218,10 @@ class MetroStatusPlugin(BasePlugin):
         try:
             # Initialize train list
             self.train_data = []
+            
+            # Reset scroll counters when data changes
+            self._scroll_step = 0
+            self._scroll_frame_counter = 0
             
             trains = data.get("Trains", [])
             self.logger.debug(f"Processing {len(trains)} trains from API")
@@ -351,9 +356,6 @@ class MetroStatusPlugin(BasePlugin):
                 self._scroll_frame_counter += 1
                 if self._scroll_frame_counter >= 6:
                     self._scroll_frame_counter = 0
-                    if not hasattr(self, '_scroll_step'):
-                        self._scroll_step = 0
-                    
                     # Scroll 3 lines per refresh
                     self._scroll_step += line_height * 3
                 
