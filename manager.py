@@ -346,7 +346,7 @@ class MetroStatusPlugin(BasePlugin):
                 visible_height = display_height - header_height - 2
                 max_scroll = max(0, total_train_height - visible_height)
                 
-                # Scroll three lines per refresh for faster scrolling
+                # Scroll at normal speed for slower scrolling
                 if not hasattr(self, '_scroll_step'):
                     self._scroll_step = 0
                 
@@ -413,7 +413,7 @@ class MetroStatusPlugin(BasePlugin):
                     page_text,
                     x=page_x,
                     y=0,
-                    color=(255, 255, 255),
+                    color=(0, 255, 255),
                     small_font=True
                 )
             
