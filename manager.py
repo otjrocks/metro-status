@@ -142,8 +142,9 @@ class MetroStatusPlugin(BasePlugin):
         self.scroll_long_destinations = display_opts.get("scroll_long_destinations", True)
         self.scroll_speed = display_opts.get("scroll_speed", 5)
         
-        # Current state - single page with next 3 trains
+        # Current state - single page with next trains
         self.train_data = []  # List of next trains in order
+        self.actual_train_count = 0  # Number of actual trains (not NO DATA padding)
         self.last_update = None
         
         # Scrolling state
@@ -219,11 +220,8 @@ class MetroStatusPlugin(BasePlugin):
             trains = data.get("Trains", [])
             self.logger.debug(f"Processing {len(trains)} trains from API")
             
-            # Process trains in order and take the first 6
+            # Process trains in order - get all of them for scrolling
             for train in trains:
-                if len(self.train_data) >= 6:
-                    break
-                
                 # Get train information
                 destination_name = train.get("DestinationName", "").strip()
                 line = train.get("Line", "")
@@ -250,8 +248,11 @@ class MetroStatusPlugin(BasePlugin):
                 self.train_data.append(train_info)
                 self.logger.debug(f"Added train: {destination_name} - {minutes_display} ({line})")
             
-            # Fill remaining slots with "NO DATA" if less than 6 trains
-            while len(self.train_data) < 6:
+            # Track how many actual trains we have
+            self.actual_train_count = len(self.train_data)
+            
+            # Fill remaining slots with "NO DATA" if less than 3 trains (for minimum display)
+            while len(self.train_data) < 3:
                 self.train_data.append({
                     "destination": "NO DATA",
                     "line": "",
@@ -259,7 +260,7 @@ class MetroStatusPlugin(BasePlugin):
                     "color": (255, 255, 255)
                 })
             
-            self.logger.info(f"Parsed {len(trains)} trains, showing next 6 for {self.reference_station}")
+            self.logger.info(f"Parsed {len(trains)} trains for {self.reference_station}, showing {self.actual_train_count} actual trains")
                     
         except Exception as e:
             self.logger.error(f"Error parsing arrivals: {e}", exc_info=True)
@@ -268,6 +269,7 @@ class MetroStatusPlugin(BasePlugin):
                 {"destination": "ERROR", "line": "", "minutes": "--", "color": (255, 255, 255)},
                 {"destination": "ERROR", "line": "", "minutes": "--", "color": (255, 255, 255)}
             ]
+            self.actual_train_count = 0
     
     def _get_direction(self, destination: str) -> str:
         """Determine direction based on destination"""
@@ -331,21 +333,20 @@ class MetroStatusPlugin(BasePlugin):
             data_changed = self.last_rendered_data != current_data_hash
             
             # Update scroll offset for smooth vertical scrolling
-            if len(self.train_data) > max_visible_trains:
+            # Only scroll if we have more actual trains than can fit on screen
+            if self.actual_train_count > max_visible_trains:
                 # Calculate total scroll range
-                total_train_height = len(self.train_data) * line_height
+                total_train_height = self.actual_train_count * line_height
                 visible_height = display_height - header_height - 2
                 max_scroll = max(0, total_train_height - visible_height)
                 
                 # Scroll smoothly: increment by 0.5 pixels per call for smooth effect
-                # This will create a slow scrolling animation
                 if not hasattr(self, '_scroll_step'):
                     self._scroll_step = 0
                 
                 self._scroll_step += 0.5
                 
-                # Calculate scroll based on step - create a loop that scrolls through all trains
-                # and pauses at each section
+                # Create a loop that scrolls through all trains
                 cycle_period = max_scroll + line_height
                 if cycle_period > 0:
                     self.scroll_offset = int(self._scroll_step % cycle_period)
@@ -405,10 +406,11 @@ class MetroStatusPlugin(BasePlugin):
             # Use smaller font for train display
             train_font = self.display_manager.small_font
             
-            # Display up to 6 trains with times on right, with vertical scrolling
+            # Display trains with times on right, with vertical scrolling
             y_offset = header_height + 1
             
-            for i, train in enumerate(self.train_data[:max_visible_trains + 2]):  # +2 for partial visibility during scroll
+            # Show all actual trains for scrolling
+            for i, train in enumerate(self.train_data):
                 y_pos = y_offset + (i * line_height) - self.scroll_offset
                 
                 # Only draw if visible on screen
@@ -469,7 +471,7 @@ class MetroStatusPlugin(BasePlugin):
                 "trains": []
             }
             
-            for train in self.train_data[:max_visible_trains]:
+            for train in self.train_data[:self.actual_train_count]:
                 display_data["trains"].append({
                     "destination": train["destination"],
                     "minutes": train["minutes"],
