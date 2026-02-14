@@ -1,165 +1,79 @@
 # DC Metro Status Plugin
 
-Display real-time Washington DC Metro train arrivals by direction on your LED Matrix, similar to station displays at actual metro stations.
+Display real-time Washington DC Metro train arrivals on an LED matrix. The plugin fetches WMATA station predictions, shows upcoming trains for a configured reference station, and vertically scrolls the arrival list (with page numbers when applicable).
 
-## Features
-
-- **Real-time Train Arrivals**: Fetches live train arrival data from the WMATA API
-- **Directional Display**: Shows next 3 trains in both directions on separate pages:
-  - First page: Eastbound trains (toward Largo/Branch Ave)
-  - Second page: Westbound trains (toward Vienna/Ashburn/Shady Grove)
-- **Line-colored Text**: Train line names display in their official colors:
-  - Red (RD)
-  - Blue (BL)
-  - Silver (SV)
-  - Orange (OR)
-  - Green (GR)
-  - Yellow (YL)
-- **Configurable Station**: Set any DC Metro station as the reference point
-- **Auto-refresh**: Configurable refresh interval to always show current data
+**Key features**
+- Live WMATA arrivals (StationPrediction API)
+- Line-colored text for official line colors (RD, BL, SV, OR, GR, YL)
+- Vertical scrolling of all available predictions; always displays at least 3 rows (pads with "NO DATA")
+- Configurable `reference_station`, `refresh_interval`, and `page_display_time`
 
 ## Installation
 
-1. **Get a WMATA API Key**:
-   - Visit https://developer.wmata.com/
-   - Sign up for a free account
-   - Get your API key from your account dashboard
-
-2. **Install the Plugin**:
-   - Via LEDMatrix Web UI: Plugin Store → Search "DC Metro" → Install
-   - Or manually copy this directory to `LEDMatrix/plugin-repos/wmata-metro-status`
+1. Obtain a WMATA API key at https://developer.wmata.com/ (required).
+2. Install the plugin via your LEDMatrix plugin mechanism or copy this directory into your plugin-repos.
 
 ## Configuration
 
-### config.json
+This project includes a JSON schema at [config_schema.json](config_schema.json) describing the supported configuration. The important properties are:
 
-Create a `config.json` file in the plugin directory with your settings:
+- `enabled` (boolean, default: `true`) — Enable or disable the plugin.
+- `wmata_api_key` (string, required) — Your WMATA API key (marked secret in the schema).
+- `reference_station` (string, required) — Reference station name (e.g. "Metro Center").
+- `refresh_interval` (integer, default: `30`) — How often (seconds) to poll the WMATA API. Valid range: 10–300.
+- `page_display_time` (integer, default: `10`) — How long (seconds) to display each page of results. Valid range: 5–60.
+
+Required fields per schema: `enabled`, `wmata_api_key`, and `reference_station`.
+
+Example `config.json`:
 
 ```json
 {
-  "reference_station": "Courthouse",
-  "wmata_api_key": "your_api_key_here",
+  "enabled": true,
+  "wmata_api_key": "YOUR_API_KEY",
+  "reference_station": "Metro Center",
   "refresh_interval": 30,
   "page_display_time": 10
 }
 ```
 
-### config-secret.json (Recommended)
+For security, keep secrets separate (e.g. `config-secret.json`) and do not commit API keys to source control.
 
-For security, store your API key in `config-secret.json`:
+## Behavior & Display
 
-```json
-{
-  "wmata_api_key": "your_api_key_here"
-}
-```
+- The plugin queries WMATA's StationPrediction endpoint and parses the `Trains` list.
+- It shows all returned trains in a vertical list and scrolls when the available results exceed the visible area. The UI will show page numbers when there are multiple pages.
+- If fewer than three actual predictions are returned, the plugin pads the display with `NO DATA` rows to maintain a consistent layout.
 
-## Configuration Parameters
+Time formats shown by the plugin:
+- `ARR` — arriving now
+- `BRD` — boarding now
+- `X MIN` — X minutes until arrival
+- `--` — unknown / no data
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `reference_station` | string | Yes | - | Metro station name (e.g., "Courthouse", "Metro Center", "Gallery Place") |
-| `wmata_api_key` | string | Yes | - | Your WMATA Developer API key |
-| `refresh_interval` | integer | No | 30 | Seconds between API calls (10-300) |
-| `page_display_time` | integer | No | 10 | Seconds to display each direction (5-60) |
+Line colors are taken from `LINE_CODES` in [manager.py](manager.py), and the plugin uses those colors to render text for each train.
 
-## Example Stations
+## WMATA API
 
-The plugin supports all DC Metro stations. Common examples:
+Endpoint used:
+`https://api.wmata.com/StationPrediction.svc/json/GetPrediction/{StationCode}`
 
-### Red Line
-- Metro Center
-- Gallery Place
-- Union Station
-- Silver Spring
-- Glenmont
-
-### Blue/Silver Line
-- Farragut West
-- L'Enfant Plaza
-- Pentagon
-- DCA Airport
-
-### Orange/Silver Line
-- Courthouse
-- Ballston
-- Vienna
-- Ashburn
-
-### Green Line
-- Gallery Place
-- L'Enfant Plaza
-- Navy Yard
-- Branch Avenue
-
-### Yellow Line
-- Gallery Place
-- Metro Center
-- Navy Yard
-
-## Display Output
-
-### First Page (Eastbound)
-```
-STATION_A           1 MIN
-STATION_B           5 MIN
-STATION_C          10 MIN
-```
-(Text color matches the train line color)
-
-### Second Page (Westbound)
-```
-STATION_X           ARR
-STATION_Y          10 MIN
-STATION_Z          20 MIN
-```
-
-## Time Formats
-
-- `ARR` - Train arriving now
-- `BRD` - Boarding now
-- `X MIN` - Minutes until arrival
-- `--` - No data available
+Requests include the `api_key` header. See WMATA developer docs for rate limits and API details: https://developer.wmata.com/
 
 ## Troubleshooting
 
-### No Data Displays
-- Verify your API key is correct
-- Check that your reference station name is valid
-- Ensure your WMATA API key has proper permissions
-- Check the LEDMatrix logs: `journalctl -u ledmatrix -f`
+- "NO DATA" shown: verify `wmata_api_key` is correct and the `reference_station` is spelled as expected.
+- API errors / rate limiting: increase `refresh_interval` or review the WMATA account limits.
+- Logs: check your LEDMatrix/plugin logs for detailed errors.
 
-### API Errors
-- Rate limiting: Default refresh is 30 seconds, adjust if needed
-- Invalid station: Verify the exact station name
-- API key issues: Regenerate your key at https://developer.wmata.com/
-
-### Common Station Names
-Use exact station names as they appear on metro signs. The plugin performs fuzzy matching, so variations usually work:
-- "Courthouse" (not "Court House")
-- "Metro Center" (not "Metro Station")
-- "Gallery Place" (not "Gallery Pl")
-
-## API Reference
-
-This plugin uses the WMATA StationPrediction API:
-- Endpoint: `https://api.wmata.com/StationPrediction.svc/json/GetPrediction/{StationCode}`
-- Authentication: API key in request headers
-- Rate Limit: Default 10 requests/second (free tier)
-
-For more info: https://developer.wmata.com/api-details
+## Files of interest
+- Configuration schema: [config_schema.json](config_schema.json)
+- Plugin implementation: [manager.py](manager.py)
 
 ## License
 
-MIT License
+MIT
 
 ## Support
 
-- Issues: https://github.com/ChuckBuilds/ledmatrix-plugins/issues
-- Discord: https://discord.gg/uW36dVAtcT
-- WMATA API Support: api-support@wmata.com
-
-## Author
-
-Created as a community plugin for the LEDMatrix project by ChuckBuilds.
-Authored by Owen Jennings using Claude Haiku 4.5
+Open an issue in the github repository.

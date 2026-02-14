@@ -136,12 +136,6 @@ class MetroStatusPlugin(BasePlugin):
         self.refresh_interval = config.get("refresh_interval", 30)
         self.page_display_time = config.get("page_display_time", 10)
         
-        # Display options
-        display_opts = config.get("display_options", {})
-        self.show_line_abbreviation = display_opts.get("show_line_abbreviation", True)
-        self.scroll_long_destinations = display_opts.get("scroll_long_destinations", True)
-        self.scroll_speed = display_opts.get("scroll_speed", 5)
-        
         # Current state - single page with next trains
         self.train_data = []  # List of next trains in order
         self.actual_train_count = 0  # Number of actual trains (not NO DATA padding)

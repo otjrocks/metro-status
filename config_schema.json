@@ -49,33 +49,6 @@
       "default": 10,
       "minimum": 5,
       "maximum": 60
-    },
-    "display_options": {
-      "type": "object",
-      "title": "Display Options",
-      "description": "Fine-grained control over text display behavior",
-      "properties": {
-        "show_line_abbreviation": {
-          "type": "boolean",
-          "description": "Show train line abbreviation (RD, OR, SV, etc.)",
-          "default": true
-        },
-        "scroll_long_destinations": {
-          "type": "boolean",
-          "description": "Scroll destination names that are longer than display width",
-          "default": true
-        },
-        "scroll_speed": {
-          "type": "integer",
-          "title": "Scroll Speed",
-          "description": "Text scroll speed divisor (higher = slower, lower = faster). Range: 1-20",
-          "minimum": 1,
-          "maximum": 20,
-          "default": 5
-        }
-      },
-      "x-propertyOrder": ["show_line_abbreviation", "scroll_long_destinations", "scroll_speed"],
-      "additionalProperties": false
     }
   },
   "required": [
@@ -83,6 +56,6 @@
     "wmata_api_key",
     "reference_station"
   ],
-  "x-propertyOrder": ["enabled", "wmata_api_key", "reference_station", "refresh_interval", "page_display_time", "display_options"],
+  "x-propertyOrder": ["enabled", "wmata_api_key", "reference_station", "refresh_interval", "page_display_time"],
   "additionalProperties": false
 }
