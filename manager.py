@@ -343,11 +343,11 @@ class MetroStatusPlugin(BasePlugin):
                 visible_height = display_height - header_height - 2
                 max_scroll = max(0, total_train_height - visible_height)
                 
-                # Scroll smoothly: increment by 0.5 pixels per call for smooth effect
+                # Scroll faster: increment by 1.5 pixels per call for faster animation
                 if not hasattr(self, '_scroll_step'):
                     self._scroll_step = 0
                 
-                self._scroll_step += 0.5
+                self._scroll_step += 3
                 
                 # Create a loop that scrolls through all trains
                 cycle_period = max_scroll + line_height
@@ -416,8 +416,8 @@ class MetroStatusPlugin(BasePlugin):
             for i, train in enumerate(self.train_data):
                 y_pos = y_offset + (i * line_height) - self.scroll_offset
                 
-                # Only draw if visible on screen
-                if y_pos + line_height < 0 or y_pos > display_height:
+                # Only draw if visible on screen and below the header
+                if y_pos + line_height < header_height or y_pos > display_height:
                     continue
                 
                 destination = train["destination"]
