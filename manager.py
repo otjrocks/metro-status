@@ -93,6 +93,60 @@ LINE_CODES = {
     "YL": {"name": "Yellow", "color": (255, 255, 0)},
 }
 
+# Destination name mappings to shorten long names for display
+DESTINATION_OVERRIDES = {
+    "vienna/fairfax gmu": "Vienna",
+    "shady grove": "Shady Grove",
+    "glenmont": "Glenmont",
+    "downtown largo town ctr": "Largo",
+    "largo town center": "Largo",
+    "branch avenue": "Branch Ave",
+    "naylor road": "Naylor Rd",
+    "suitland": "Suitland",
+    "navy yard-ballpark": "Navy Yard",
+    "anacostia": "Anacostia",
+    "congressional center": "Congress",
+    "southern avenue": "S. Avenue",
+    "noma-gallaudet u": "NoMa",
+    "fort totten": "Ft. Totten",
+    "takoma": "Takoma",
+    "silver spring": "Silver Spg",
+    "forest glen": "Forest Glen",
+    "wheaton": "Wheaton",
+    "glenmont": "Glenmont",
+    "bethesda": "Bethesda",
+    "medical center": "Med. Ctr",
+    "friendship heights": "Friendship",
+    "tenleytown": "Tenleytown",
+    "van ness-udc": "Van Ness",
+    "farragut north": "Farragut N",
+    "farragut west": "Farragut W",
+    "dupont circle": "Dupont",
+    "woodley park": "Woodley Pk",
+    "cleveland park": "Cleveland",
+    "clarendon": "Clarendon",
+    "virginia square": "Va Sq",
+    "ballston": "Ballston",
+    "west falls church": "W Falls Cr",
+    "east falls church": "E Falls Cr",
+    "falls church": "Falls Chc",
+    "metro center": "Metro Ctr",
+    "gallery place": "Gallery Pl",
+    "archives": "Archives",
+    "judiciary square": "Judiciary",
+    "union station": "Union Sta",
+    "rhode island ave": "Rhode Is",
+    "brookland-cua": "Brookland",
+    "waterfront": "Waterfront",
+    "l'enfant plaza": "L'Enfant",
+    "capitol south": "Capitol S",
+    "eastern market": "E. Market",
+    "potomac ave": "Potomac",
+    "stadium-armory": "Stadium",
+    "minnesota ave": "Minnesota",
+    "deanwood": "Deanwood",
+}
+
 class BasePlugin:
     """Base class for all plugins - placeholder for local testing"""
     def __init__(self, plugin_id: str, config: Dict[str, Any], 
@@ -172,6 +226,19 @@ class MetroStatusPlugin(BasePlugin):
     def _get_line_color(self, line_code: str) -> tuple:
         """Get RGB color for line"""
         return LINE_CODES.get(line_code, {}).get("color", (255, 255, 255))
+    
+    def _get_short_destination_name(self, destination: str) -> str:
+        """Get shortened display name for destination"""
+        destination_lower = destination.lower().strip()
+        # Check for exact match in overrides
+        if destination_lower in DESTINATION_OVERRIDES:
+            return DESTINATION_OVERRIDES[destination_lower]
+        # Check for partial match
+        for key, value in DESTINATION_OVERRIDES.items():
+            if key in destination_lower:
+                return value
+        # Return original if no match found
+        return destination
     
     def _fetch_arrivals(self) -> bool:
         """Fetch real-time train arrival data from WMATA API"""
@@ -343,11 +410,11 @@ class MetroStatusPlugin(BasePlugin):
                 visible_height = display_height - header_height - 2
                 max_scroll = max(0, total_train_height - visible_height)
                 
-                # Scroll faster: increment by 7 pixels per call for faster animation
+                # Scroll even faster: increment by 2.0 pixels per call
                 if not hasattr(self, '_scroll_step'):
                     self._scroll_step = 0
                 
-                self._scroll_step += 7 # Adjust this value for faster/slower scrolling
+                self._scroll_step += 2.0
                 
                 # Create a loop that scrolls through all trains
                 cycle_period = max_scroll + line_height
@@ -367,7 +434,7 @@ class MetroStatusPlugin(BasePlugin):
             # Clear display for new content
             self.display_manager.clear()
             
-            # Display station header with scrolling
+            # Display station header fixed at top (no scrolling)
             station_name = self.reference_station.title()
             station_font = self.display_manager.small_font
             
@@ -384,13 +451,10 @@ class MetroStatusPlugin(BasePlugin):
                 truncated_name = truncated_name[:-2] + ".." if len(truncated_name) > 2 else ".."
             
             station_display = truncated_name
-            
-            # Draw station header at scrolling position
-            station_y = 0 - self.scroll_offset
             self.display_manager.draw_text(
                 station_display,
                 x=0,
-                y=station_y,
+                y=0,
                 color=(255, 255, 255),
                 small_font=True
             )
@@ -400,7 +464,7 @@ class MetroStatusPlugin(BasePlugin):
                 self.display_manager.draw_text(
                     "NO DATA",
                     x=5,
-                    y=header_height - self.scroll_offset,
+                    y=header_height,
                     color=(255, 128, 0),
                     small_font=True
                 )
@@ -412,21 +476,23 @@ class MetroStatusPlugin(BasePlugin):
             # Use smaller font for train display
             train_font = self.display_manager.small_font
             
-            # Display trains with times on right, with vertical scrolling
-            # Start trains below the header (which now scrolls with them)
+            # Display trains with times on right, with vertical scrolling below header
             y_offset = header_height + 1
             
             # Show all actual trains for scrolling
             for i, train in enumerate(self.train_data):
                 y_pos = y_offset + (i * line_height) - self.scroll_offset
                 
-                # Only draw if visible on screen
-                if y_pos + line_height < 0 or y_pos > display_height:
+                # Only draw if visible on screen and below the header (clipping)
+                if y_pos + line_height < header_height or y_pos > display_height:
                     continue
                 
                 destination = train["destination"]
                 minutes_str = str(train["minutes"])
                 color = train["color"]
+                
+                # Get shortened destination name for display
+                short_dest = self._get_short_destination_name(destination)
                 
                 # Calculate width of minutes text
                 minutes_width = self.display_manager.get_text_width(minutes_str, train_font)
@@ -440,11 +506,11 @@ class MetroStatusPlugin(BasePlugin):
                 max_dest_available = minutes_x - spacing
                 
                 # Truncate destination if it would overlap with minutes
-                truncated_dest = destination
+                truncated_dest = short_dest
                 while self.display_manager.get_text_width(truncated_dest, train_font) > max_dest_available and len(truncated_dest) > 1:
                     truncated_dest = truncated_dest[:-1]
                 
-                if len(truncated_dest) < len(destination):
+                if len(truncated_dest) < len(short_dest):
                     truncated_dest = truncated_dest[:-2] + ".." if len(truncated_dest) > 2 else ".."
                 
                 # Draw destination on the left
