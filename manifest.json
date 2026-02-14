@@ -2,13 +2,12 @@
   "id": "wmata-metro-status",
   "name": "DC Metro Status",
   "version": "1.0.0",
-  "description": "Displays real-time Washington DC Metro train arrivals by direction for a reference station",
+  "description": "Displays real-time Washington DC Metro train arrivals for a reference station",
   "author": "Owen Jennings",
   "class_name": "MetroStatusPlugin",
   "entry_point": "manager.py",
   "display_modes": [
-    "east",
-    "west"
+    "default"
   ],
   "category": "Transportation",
   "repository": "https://github.com/ChuckBuilds/ledmatrix-plugins",

@@ -142,12 +142,8 @@ class MetroStatusPlugin(BasePlugin):
         self.scroll_long_destinations = display_opts.get("scroll_long_destinations", True)
         self.scroll_speed = display_opts.get("scroll_speed", 5)
         
-        # Current state
-        self.current_page = 0  # 0 for east, 1 for west
-        self.train_data = {
-            "east": [],
-            "west": []
-        }
+        # Current state - single page with next 3 trains
+        self.train_data = []  # List of next trains in order
         self.last_update = None
         
         # WMATA API endpoint
@@ -210,24 +206,25 @@ class MetroStatusPlugin(BasePlugin):
             return False
     
     def _parse_arrivals(self, data: Dict[str, Any]) -> None:
-        """Parse arrival data and organize by direction"""
+        """Parse arrival data and store next trains"""
         try:
-            # Initialize train lists
-            self.train_data = {"east": [], "west": []}
+            # Initialize train list
+            self.train_data = []
             
             trains = data.get("Trains", [])
             self.logger.debug(f"Processing {len(trains)} trains from API")
             
+            # Process trains in order and take the first 3
             for train in trains:
-                # Get destination name and line
+                if len(self.train_data) >= 3:
+                    break
+                
+                # Get train information
                 destination_name = train.get("DestinationName", "").strip()
                 line = train.get("Line", "")
                 minutes = train.get("Min", "")
-                group = train.get("Group", "")
                 
-                # Determine direction based on Group field and destination
-                direction = self._get_direction_from_group(destination_name, group)
-                
+                # Format minutes for display
                 if minutes == "ARR":
                     minutes_display = "ARR"
                 elif minutes == "BRD":
@@ -245,32 +242,27 @@ class MetroStatusPlugin(BasePlugin):
                     "color": self._get_line_color(line)
                 }
                 
-                # Add to appropriate direction (limit to 3 trains per direction)
-                if direction == "east" and len(self.train_data["east"]) < 3:
-                    self.train_data["east"].append(train_info)
-                    self.logger.debug(f"Added eastbound: {destination_name} - {minutes_display}")
-                elif direction == "west" and len(self.train_data["west"]) < 3:
-                    self.train_data["west"].append(train_info)
-                    self.logger.debug(f"Added westbound: {destination_name} - {minutes_display}")
+                self.train_data.append(train_info)
+                self.logger.debug(f"Added train: {destination_name} - {minutes_display} ({line})")
             
-            # Fill empty slots with placeholder data
-            for direction in ["east", "west"]:
-                while len(self.train_data[direction]) < 3:
-                    self.train_data[direction].append({
-                        "destination": "NO DATA",
-                        "line": "",
-                        "minutes": "--",
-                        "color": (255, 255, 255)
-                    })
+            # Fill remaining slots with "NO DATA" if less than 3 trains
+            while len(self.train_data) < 3:
+                self.train_data.append({
+                    "destination": "NO DATA",
+                    "line": "",
+                    "minutes": "--",
+                    "color": (255, 255, 255)
+                })
             
-            self.logger.info(f"Parsed trains - East: {len(self.train_data['east'])}, West: {len(self.train_data['west'])}")
+            self.logger.info(f"Parsed {len(trains)} trains, showing next 3 for {self.reference_station}")
                     
         except Exception as e:
             self.logger.error(f"Error parsing arrivals: {e}", exc_info=True)
-            self.train_data = {
-                "east": [{"destination": "ERROR", "line": "", "minutes": "--", "color": (255, 255, 255)}] * 3,
-                "west": [{"destination": "ERROR", "line": "", "minutes": "--", "color": (255, 255, 255)}] * 3
-            }
+            self.train_data = [
+                {"destination": "ERROR", "line": "", "minutes": "--", "color": (255, 255, 255)},
+                {"destination": "ERROR", "line": "", "minutes": "--", "color": (255, 255, 255)},
+                {"destination": "ERROR", "line": "", "minutes": "--", "color": (255, 255, 255)}
+            ]
     
     def _get_direction(self, destination: str) -> str:
         """Determine direction based on destination"""
@@ -293,32 +285,6 @@ class MetroStatusPlugin(BasePlugin):
         # Default to east if destination is unclear
         return "east"
     
-    def _get_direction_from_group(self, destination: str, group: str) -> str:
-        """Determine direction based on Group field and destination"""
-        destination_lower = destination.lower()
-        
-        # East direction destinations (towards Largo/Branch Ave/Navy Yard/Anacostia)
-        east_destinations = ["largo", "branch", "suitland", "naylor", "congress", "southern", "navy yard", "anacostia", "waterfront", "ikea", "deanwood", "minnesota"]
-        
-        # West direction destinations (towards Vienna/Ashburn/Shady Grove/Glenmont)
-        west_destinations = ["vienna", "ashburn", "dunn loring", "falls church", "west falls", "friendship heights", "bethesda", "medical center", "shady grove", "shady grv", "glenmont", "uptown", "tenleytown", "van ness", "wheaton", "takoma", "silver spring", "noma"]
-        
-        for dest in east_destinations:
-            if dest in destination_lower:
-                return "east"
-        
-        for dest in west_destinations:
-            if dest in destination_lower:
-                return "west"
-        
-        # Use Group field as fallback (Group "1" vs "2" may indicate direction)
-        if group == "1":
-            return "east"
-        elif group == "2":
-            return "west"
-        
-        # Default to east if destination is unclear
-        return "east"
     
     def update(self) -> None:
         """Update train arrival data from WMATA API."""
@@ -348,48 +314,56 @@ class MetroStatusPlugin(BasePlugin):
             if force_clear:
                 self.display_manager.clear()
             
-            direction = "east" if self.current_page == 0 else "west"
-            direction_label = "EASTBOUND" if self.current_page == 0 else "WESTBOUND"
+    def display(self, force_clear: bool = False) -> Dict[str, Any]:
+        """Display next 3 trains for the reference station.
+        
+        Args:
+            force_clear: If True, clear display before rendering
             
-            trains = self.train_data.get(direction, [])
-            
-            # If no trains, show "No Data" message
-            if not trains or len(trains) == 0:
-                self.display_manager.clear()
-                self.display_manager.draw_text(
-                    "NO DATA",
-                    x=5,
-                    y=10,
-                    color=(255, 128, 0),
-                    small_font=True
-                )
-                self.display_manager.update_display()
-                return {"direction": direction_label, "trains": []}
+        Returns:
+            Dictionary containing display data
+        """
+        try:
+            if not self.enabled or not self.display_manager:
+                return {"station": self.reference_station, "trains": []}
             
             # Clear display for new content
             self.display_manager.clear()
             
-            # Display direction header
+            # Display station header
+            station_display = f"Stn: {self.reference_station.title()[:16]}"
             self.display_manager.draw_text(
-                direction_label,
+                station_display,
                 x=0,
                 y=0,
                 color=(255, 255, 255),
                 small_font=True
             )
             
-            # Display up to 3 trains
+            # If no trains, show "No Data" message
+            if not self.train_data or all(t["destination"] == "NO DATA" for t in self.train_data):
+                self.display_manager.draw_text(
+                    "NO DATA",
+                    x=5,
+                    y=16,
+                    color=(255, 128, 0),
+                    small_font=True
+                )
+                self.display_manager.update_display()
+                return {"station": self.reference_station, "trains": []}
+            
+            # Display up to 3 trains with times on right
             y_offset = 10
             line_height = 8
+            max_dest_width = 18
             
-            for i, train in enumerate(trains[:3]):
-                destination = train["destination"][:20]  # Limit width
+            for i, train in enumerate(self.train_data[:3]):
+                destination = train["destination"][:max_dest_width]
                 minutes = train["minutes"]
                 color = train["color"]
                 
-                # Format line: "DESTINATION    MIN"
-                # Build the display string
-                display_line = f"{destination:20} {minutes:>3}"
+                # Format with times on right: "DESTINATION    MIN"
+                display_line = f"{destination:<{max_dest_width}} {minutes:>4}"
                 
                 # Draw the train information
                 self.display_manager.draw_text(
@@ -405,18 +379,36 @@ class MetroStatusPlugin(BasePlugin):
             
             # Return data for logging/debugging
             display_data = {
-                "direction": direction_label,
+                "station": self.reference_station,
                 "trains": []
             }
             
-            for train in trains[:3]:
+            for train in self.train_data[:3]:
                 display_data["trains"].append({
                     "destination": train["destination"],
                     "minutes": train["minutes"],
                     "line": train["line"]
                 })
             
+            self.logger.debug(f"Displayed {len(display_data['trains'])} trains for {self.reference_station}")
             return display_data
+            
+        except Exception as e:
+            self.logger.error(f"Error displaying metro status: {e}", exc_info=True)
+            try:
+                if self.display_manager:
+                    self.display_manager.clear()
+                    self.display_manager.draw_text(
+                        "ERROR",
+                        x=5,
+                        y=15,
+                        color=(255, 0, 0),
+                        small_font=True
+                    )
+                    self.display_manager.update_display()
+            except:
+                pass
+            return {"station": self.reference_station, "trains": []}
             
         except Exception as e:
             self.logger.error(f"Error displaying metro status: {e}", exc_info=True)
@@ -436,12 +428,12 @@ class MetroStatusPlugin(BasePlugin):
             return {"direction": "ERROR", "trains": []}
     
     def next_page(self) -> None:
-        """Switch to next page (direction)"""
-        self.current_page = (self.current_page + 1) % 2
+        """Next page - no-op since there's only one page."""
+        pass
     
     def prev_page(self) -> None:
-        """Switch to previous page (direction)"""
-        self.current_page = (self.current_page - 1) % 2
+        """Previous page - no-op since there's only one page."""
+        pass
     
     def get_display_duration(self) -> float:
         """Get display duration from config."""
@@ -479,11 +471,7 @@ class MetroStatusPlugin(BasePlugin):
             "plugin_id": self.plugin_id,
             "enabled": self.enabled,
             "reference_station": self.reference_station,
-            "current_page": "EASTBOUND" if self.current_page == 0 else "WESTBOUND",
-            "trains_available": {
-                "east": len(self.train_data.get("east", [])),
-                "west": len(self.train_data.get("west", []))
-            },
+            "trains_count": len(self.train_data),
             "last_update": self.last_update.isoformat() if self.last_update else None
         }
         return info
