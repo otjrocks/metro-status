@@ -1,0 +1,6 @@
+{
+  "reference_station": "Courthouse",
+  "wmata_api_key": "get_from_config_secret.json_or_env_var",
+  "refresh_interval": 30,
+  "page_display_time": 10
+}

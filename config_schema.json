@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "DC Metro Status Configuration",
+  "description": "Configuration for WMATA DC Metro real-time status display",
+  "properties": {
+    "reference_station": {
+      "type": "string",
+      "title": "Reference Station",
+      "description": "The metro station to display arrivals for (e.g., Courthouse, Metro Center, Gallery Place)",
+      "default": "Metro Center",
+      "examples": [
+        "Courthouse",
+        "Metro Center",
+        "Gallery Place",
+        "Union Station",
+        "L'Enfant Plaza",
+        "Farragut West"
+      ]
+    },
+    "wmata_api_key": {
+      "type": "string",
+      "title": "WMATA API Key",
+      "description": "Your WMATA API key from https://developer.wmata.com/",
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    "refresh_interval": {
+      "type": "integer",
+      "title": "Refresh Interval",
+      "description": "How often to refresh train data in seconds",
+      "default": 30,
+      "minimum": 10,
+      "maximum": 300
+    },
+    "page_display_time": {
+      "type": "integer",
+      "title": "Page Display Time",
+      "description": "How long to display each direction page in seconds",
+      "default": 10,
+      "minimum": 5,
+      "maximum": 60
+    }
+  },
+  "required": [
+    "reference_station",
+    "wmata_api_key"
+  ],
+  "additionalProperties": false
+}
