@@ -93,6 +93,10 @@ LINE_CODES = {
     "YL": {"name": "Yellow", "color": (255, 255, 0)},
 }
 
+DESTINATION_OVERWRITE = {
+    "ssenger": "No passenger"
+}
+
 class BasePlugin:
     """Base class for all plugins - placeholder for local testing"""
     def __init__(self, plugin_id: str, config: Dict[str, Any], 
@@ -290,8 +294,18 @@ class MetroStatusPlugin(BasePlugin):
         return "east"
     
     def _get_short_destination_name(self, destination: str) -> str:
-        """Return destination name as-is"""
-        return destination.strip()
+        """Return destination name after applying overwrite map.
+
+        If the lower-cased, stripped `destination` exists in
+        `self.destination_overwrite_map`, return the mapped value. Otherwise
+        return the stripped original.
+        """
+        if not destination:
+            return ""
+
+        dest = destination.strip()
+        mapped = DESTINATION_OVERWRITE.get(dest.lower())
+        return mapped if mapped is not None else dest
 
     def _truncate_for_width(self, text: str, max_width: int, font) -> str:
         """Truncate `text` so its pixel width (using `font`) does not exceed
