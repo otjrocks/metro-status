@@ -346,15 +346,14 @@ class MetroStatusPlugin(BasePlugin):
                 visible_height = display_height - header_height - 2
                 max_scroll = max(0, total_train_height - visible_height)
                 
-                # Scroll one line per refresh for smooth, clean scrolling
+                # Scroll three lines per refresh for faster scrolling
                 if not hasattr(self, '_scroll_step'):
                     self._scroll_step = 0
                 
-                self._scroll_step += line_height
+                self._scroll_step += line_height * 3
                 
-                # Wrap around tightly after all trains have scrolled through
-                # Subtract one line_height to avoid blank lines at the transition
-                cycle_period = max(line_height, total_train_height - line_height)
+                # Wrap around with no blank lines after all trains have scrolled through
+                cycle_period = total_train_height
                 if cycle_period > 0:
                     self.scroll_offset = int(self._scroll_step % cycle_period)
                 else:
@@ -375,8 +374,19 @@ class MetroStatusPlugin(BasePlugin):
             station_name = self.reference_station.title()
             station_font = self.display_manager.small_font
             
-            # Calculate available width for station name
-            max_station_width = display_width - 10
+            # Calculate page numbers for scrolling trains
+            total_pages = max(1, (self.actual_train_count + max_visible_trains - 1) // max_visible_trains)
+            current_page = (self.scroll_offset // (max_visible_trains * line_height)) + 1
+            current_page = min(current_page, total_pages)  # Ensure we don't exceed total pages
+            page_text = f"{current_page}/{total_pages}" if total_pages > 1 else ""
+            
+            # Calculate page text width for right-alignment
+            page_text_width = self.display_manager.get_text_width(page_text, station_font) if page_text else 0
+            
+            # Calculate available width for station name (accounting for page number)
+            right_margin = 2
+            spacing = 2
+            max_station_width = display_width - page_text_width - right_margin - spacing if page_text else display_width - 10
             available_for_name = max_station_width
             
             # Truncate station name with ellipsis if needed
@@ -395,6 +405,17 @@ class MetroStatusPlugin(BasePlugin):
                 color=(255, 255, 255),
                 small_font=True
             )
+            
+            # Draw page number on the right if there are multiple pages
+            if page_text:
+                page_x = display_width - page_text_width - right_margin
+                self.display_manager.draw_text(
+                    page_text,
+                    x=page_x,
+                    y=0,
+                    color=(255, 255, 255),
+                    small_font=True
+                )
             
             # If no trains, show "No Data" message
             if not self.train_data or all(t["destination"] == "NO DATA" for t in self.train_data):
