@@ -146,6 +146,11 @@ class MetroStatusPlugin(BasePlugin):
         self.train_data = []  # List of next trains in order
         self.last_update = None
         
+        # Scrolling state
+        self.scroll_offset = 0  # Vertical scroll offset in pixels
+        self.last_rendered_data = None  # Track last rendered data to detect changes
+        self.last_scroll_offset = None  # Track last scroll offset to detect scroll changes
+        
         # WMATA API endpoint
         self.predictions_api_url = "https://api.wmata.com/StationPrediction.svc/json/GetPrediction"
         
@@ -298,7 +303,7 @@ class MetroStatusPlugin(BasePlugin):
             self.logger.error(f"Error updating metro status: {e}", exc_info=True)
     
     def display(self, force_clear: bool = False) -> Dict[str, Any]:
-        """Display next 3 trains for the reference station.
+        """Display next 6 trains for the reference station with vertical scrolling.
         
         Args:
             force_clear: If True, clear display before rendering
@@ -310,21 +315,59 @@ class MetroStatusPlugin(BasePlugin):
             if not self.enabled or not self.display_manager:
                 return {"station": self.reference_station, "trains": []}
             
-            # Clear display for new content
-            self.display_manager.clear()
-            
             # Get display dimensions for proper positioning
             display_width = self.display_manager.width
             display_height = self.display_manager.height
             
+            # Station header dimensions
+            header_height = 7
+            
+            # Display up to 6 trains with larger line height
+            line_height = 8
+            max_visible_trains = 6
+            
+            # Check if data or scrolling has changed
+            current_data_hash = hash(tuple((t["destination"], t["minutes"]) for t in self.train_data[:max_visible_trains]))
+            data_changed = self.last_rendered_data != current_data_hash
+            
+            # Update scroll offset for smooth vertical scrolling
+            if len(self.train_data) > max_visible_trains:
+                # Calculate total scroll range
+                total_train_height = len(self.train_data) * line_height
+                max_scroll = max(0, total_train_height - (display_height - header_height - 2))
+                
+                # Scroll smoothly: increment by 0.5 pixels per call for smooth effect
+                # This will create a slow scrolling animation
+                if not hasattr(self, '_scroll_step'):
+                    self._scroll_step = 0
+                
+                self._scroll_step += 0.5
+                if self._scroll_step >= max_scroll + (line_height * len(self.train_data)):
+                    self._scroll_step = 0  # Reset scroll loop
+                
+                # Calculate scroll based on step
+                cycle_period = max_scroll + line_height
+                if cycle_period > 0:
+                    self.scroll_offset = int(self._scroll_step % cycle_period)
+            else:
+                self.scroll_offset = 0
+            
+            # Only update display if data changed or scroll offset changed
+            scroll_changed = self.last_scroll_offset != self.scroll_offset
+            
+            if not data_changed and not scroll_changed and not force_clear:
+                return {"station": self.reference_station, "trains": []}
+            
+            # Clear display for new content
+            self.display_manager.clear()
+            
             # Display station header with ellipsis if too long
             station_prefix = "Stn: "
             station_name = self.reference_station.title()
-            # Use smaller font for header to save space
             station_font = self.display_manager.small_font
             
-            # Calculate available width for station name (leave margin for later)
-            max_station_width = display_width - 10  # Small margin
+            # Calculate available width for station name
+            max_station_width = display_width - 10
             station_label_width = self.display_manager.get_text_width(station_prefix, station_font)
             available_for_name = max_station_width - station_label_width
             
@@ -350,21 +393,28 @@ class MetroStatusPlugin(BasePlugin):
                 self.display_manager.draw_text(
                     "NO DATA",
                     x=5,
-                    y=10,
+                    y=header_height,
                     color=(255, 128, 0),
                     small_font=True
                 )
                 self.display_manager.update_display()
+                self.last_rendered_data = current_data_hash
+                self.last_scroll_offset = self.scroll_offset
                 return {"station": self.reference_station, "trains": []}
             
-            # Use smaller font for train display to fit more rows
+            # Use smaller font for train display
             train_font = self.display_manager.small_font
             
-            # Display up to 4 trains with times on right (adjusted line height for smaller font)
-            y_offset = 8
-            line_height = 6
+            # Display up to 6 trains with times on right, with vertical scrolling
+            y_offset = header_height + 1
             
-            for i, train in enumerate(self.train_data[:4]):
+            for i, train in enumerate(self.train_data[:max_visible_trains + 2]):  # +2 for partial visibility during scroll
+                y_pos = y_offset + (i * line_height) - self.scroll_offset
+                
+                # Only draw if visible on screen
+                if y_pos + line_height < 0 or y_pos > display_height:
+                    continue
+                
                 destination = train["destination"]
                 minutes_str = str(train["minutes"])
                 color = train["color"]
@@ -392,7 +442,7 @@ class MetroStatusPlugin(BasePlugin):
                 self.display_manager.draw_text(
                     truncated_dest,
                     x=0,
-                    y=y_offset + (i * line_height),
+                    y=y_pos,
                     color=color,
                     small_font=True
                 )
@@ -401,7 +451,7 @@ class MetroStatusPlugin(BasePlugin):
                 self.display_manager.draw_text(
                     minutes_str,
                     x=minutes_x,
-                    y=y_offset + (i * line_height),
+                    y=y_pos,
                     color=color,
                     small_font=True
                 )
@@ -409,13 +459,17 @@ class MetroStatusPlugin(BasePlugin):
             # Update the physical display
             self.display_manager.update_display()
             
+            # Track render state to avoid unnecessary updates
+            self.last_rendered_data = current_data_hash
+            self.last_scroll_offset = self.scroll_offset
+            
             # Return data for logging/debugging
             display_data = {
                 "station": self.reference_station,
                 "trains": []
             }
             
-            for train in self.train_data[:3]:
+            for train in self.train_data[:max_visible_trains]:
                 display_data["trains"].append({
                     "destination": train["destination"],
                     "minutes": train["minutes"],
