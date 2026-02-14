@@ -219,9 +219,9 @@ class MetroStatusPlugin(BasePlugin):
             trains = data.get("Trains", [])
             self.logger.debug(f"Processing {len(trains)} trains from API")
             
-            # Process trains in order and take the first 3
+            # Process trains in order and take the first 6
             for train in trains:
-                if len(self.train_data) >= 3:
+                if len(self.train_data) >= 6:
                     break
                 
                 # Get train information
@@ -250,8 +250,8 @@ class MetroStatusPlugin(BasePlugin):
                 self.train_data.append(train_info)
                 self.logger.debug(f"Added train: {destination_name} - {minutes_display} ({line})")
             
-            # Fill remaining slots with "NO DATA" if less than 3 trains
-            while len(self.train_data) < 3:
+            # Fill remaining slots with "NO DATA" if less than 6 trains
+            while len(self.train_data) < 6:
                 self.train_data.append({
                     "destination": "NO DATA",
                     "line": "",
@@ -259,7 +259,7 @@ class MetroStatusPlugin(BasePlugin):
                     "color": (255, 255, 255)
                 })
             
-            self.logger.info(f"Parsed {len(trains)} trains, showing next 3 for {self.reference_station}")
+            self.logger.info(f"Parsed {len(trains)} trains, showing next 6 for {self.reference_station}")
                     
         except Exception as e:
             self.logger.error(f"Error parsing arrivals: {e}", exc_info=True)
@@ -334,7 +334,8 @@ class MetroStatusPlugin(BasePlugin):
             if len(self.train_data) > max_visible_trains:
                 # Calculate total scroll range
                 total_train_height = len(self.train_data) * line_height
-                max_scroll = max(0, total_train_height - (display_height - header_height - 2))
+                visible_height = display_height - header_height - 2
+                max_scroll = max(0, total_train_height - visible_height)
                 
                 # Scroll smoothly: increment by 0.5 pixels per call for smooth effect
                 # This will create a slow scrolling animation
@@ -342,18 +343,22 @@ class MetroStatusPlugin(BasePlugin):
                     self._scroll_step = 0
                 
                 self._scroll_step += 0.5
-                if self._scroll_step >= max_scroll + (line_height * len(self.train_data)):
-                    self._scroll_step = 0  # Reset scroll loop
                 
-                # Calculate scroll based on step
+                # Calculate scroll based on step - create a loop that scrolls through all trains
+                # and pauses at each section
                 cycle_period = max_scroll + line_height
                 if cycle_period > 0:
                     self.scroll_offset = int(self._scroll_step % cycle_period)
+                else:
+                    self.scroll_offset = 0
             else:
                 self.scroll_offset = 0
             
-            # Always update display for scrolling animation (don't skip even if data hasn't changed)
-            # The scroll offset changes every frame, so we always render
+            # Only update display if scroll offset changed or data changed
+            scroll_changed = self.last_scroll_offset != self.scroll_offset
+            
+            if not data_changed and not scroll_changed and not force_clear:
+                return {"station": self.reference_station, "trains": []}
             
             # Clear display for new content
             self.display_manager.clear()
