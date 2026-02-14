@@ -1,13 +1,19 @@
+"""
+DC Metro Status Plugin for LEDMatrix
+
+Displays real-time Washington DC Metro train arrivals by direction,
+similar to displays at actual metro stations.
+
+API Version: 1.0.0
+"""
+
 import json
 import logging
-import os
+import time
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Dict, Any
 import requests
-from abc import ABC
-
-# Configure logging
-logger = logging.getLogger(__name__)
+from src.plugin_system.base_plugin import BasePlugin
 
 # Station codes for DC Metro (common stations)
 STATION_CODES = {
@@ -87,36 +93,67 @@ LINE_CODES = {
     "YL": {"name": "Yellow", "color": (255, 255, 0)},
 }
 
-class BasePlugin(ABC):
-    """Base class for all plugins"""
-    def __init__(self, config: Dict[str, Any]):
+class BasePlugin:
+    """Base class for all plugins - placeholder for local testing"""
+    def __init__(self, plugin_id: str, config: Dict[str, Any], 
+                 display_manager=None, cache_manager=None, plugin_manager=None):
+        self.plugin_id = plugin_id
         self.config = config
+        self.display_manager = display_manager
+        self.cache_manager = cache_manager
+        self.plugin_manager = plugin_manager
         self.logger = logging.getLogger(self.__class__.__name__)
-    
-    def update(self) -> None:
-        """Update plugin data"""
-        pass
-    
-    def display(self) -> None:
-        """Display plugin data"""
-        pass
 
 class MetroStatusPlugin(BasePlugin):
-    """WMATA Metro Status Plugin for displaying real-time train arrivals"""
+    """
+    WMATA Metro Status Plugin for displaying real-time train arrivals.
     
-    def __init__(self, config: Dict[str, Any]):
-        super().__init__(config)
-        self.wmata_api_key = self.config.get("wmata_api_key", "")
-        self.reference_station = self.config.get("reference_station", "Metro Center").lower()
+    Displays next 3 trains in each direction for a configured reference station.
+    Train line names display in their official colors (Red, Blue, Orange, Silver, etc.).
+    
+    Configuration options:
+        enabled (bool): Enable or disable the plugin (default: True)
+        wmata_api_key (str): Your WMATA API key from https://developer.wmata.com/
+        reference_station (str): The metro station to display arrivals for
+        refresh_interval (int): How often to refresh train data in seconds (default: 30)
+        page_display_time (int): How long to display each direction in seconds (default: 10)
+        display_options (dict): Fine-grained control over text display behavior
+            - show_line_abbreviation: Show train line abbreviation (default: True)
+            - scroll_long_destinations: Scroll long destination names (default: True)
+            - scroll_speed: Text scroll speed divisor (default: 5)
+    """
+
+    def __init__(self, plugin_id: str, config: Dict[str, Any],
+                 display_manager=None, cache_manager=None, plugin_manager=None):
+        """Initialize the metro status plugin."""
+        super().__init__(plugin_id, config, display_manager, cache_manager, plugin_manager)
+        
+        # Metro Status specific configuration
+        self.enabled = config.get("enabled", True)
+        self.wmata_api_key = config.get("wmata_api_key", "")
+        self.reference_station = config.get("reference_station", "Metro Center").lower()
         self.station_code = self._get_station_code(self.reference_station)
+        self.refresh_interval = config.get("refresh_interval", 30)
+        self.page_display_time = config.get("page_display_time", 10)
+        
+        # Display options
+        display_opts = config.get("display_options", {})
+        self.show_line_abbreviation = display_opts.get("show_line_abbreviation", True)
+        self.scroll_long_destinations = display_opts.get("scroll_long_destinations", True)
+        self.scroll_speed = display_opts.get("scroll_speed", 5)
+        
+        # Current state
         self.current_page = 0  # 0 for east, 1 for west
         self.train_data = {
             "east": [],
             "west": []
         }
         self.last_update = None
-        # Correct WMATA API endpoint
+        
+        # WMATA API endpoint
         self.predictions_api_url = "https://api.wmata.com/StationPrediction.svc/json/GetPrediction"
+        
+        self.logger.info(f"Metro Status plugin initialized for station: {self.reference_station}")
     
     def _get_station_code(self, station_name: str) -> str:
         """Get WMATA station code from station name"""
@@ -263,30 +300,48 @@ class MetroStatusPlugin(BasePlugin):
         return "east"
     
     def update(self) -> None:
-        """Update train arrival data"""
-        self._fetch_arrivals()
+        """Update train arrival data from WMATA API."""
+        try:
+            if not self.enabled:
+                self.logger.debug("Metro Status plugin is disabled")
+                return
+            
+            self._fetch_arrivals()
+        except Exception as e:
+            self.logger.error(f"Error updating metro status: {e}", exc_info=True)
     
-    def display(self) -> Dict[str, Any]:
-        """Get display data for current page"""
-        direction = "east" if self.current_page == 0 else "west"
-        direction_label = "EASTBOUND" if self.current_page == 0 else "WESTBOUND"
+    def display(self, force_clear: bool = False) -> Dict[str, Any]:
+        """Get display data for current page.
         
-        trains = self.train_data.get(direction, [])
-        
-        display_data = {
-            "direction": direction_label,
-            "trains": []
-        }
-        
-        for i, train in enumerate(trains[:3]):  # Ensure only 3 trains
-            display_data["trains"].append({
-                "destination": train["destination"][:17],  # Limit to 17 chars for display
-                "minutes": train["minutes"],
-                "color": train["color"],
-                "line": train["line"]
-            })
-        
-        return display_data
+        Args:
+            force_clear: If True, clear display before rendering
+            
+        Returns:
+            Dictionary containing display data for current direction
+        """
+        try:
+            direction = "east" if self.current_page == 0 else "west"
+            direction_label = "EASTBOUND" if self.current_page == 0 else "WESTBOUND"
+            
+            trains = self.train_data.get(direction, [])
+            
+            display_data = {
+                "direction": direction_label,
+                "trains": []
+            }
+            
+            for i, train in enumerate(trains[:3]):  # Ensure only 3 trains
+                display_data["trains"].append({
+                    "destination": train["destination"][:17],  # Limit to 17 chars for display
+                    "minutes": train["minutes"],
+                    "color": train["color"],
+                    "line": train["line"]
+                })
+            
+            return display_data
+        except Exception as e:
+            self.logger.error(f"Error preparing display data: {e}", exc_info=True)
+            return {"direction": "ERROR", "trains": []}
     
     def next_page(self) -> None:
         """Switch to next page (direction)"""
@@ -296,9 +351,56 @@ class MetroStatusPlugin(BasePlugin):
         """Switch to previous page (direction)"""
         self.current_page = (self.current_page - 1) % 2
     
+    def get_display_duration(self) -> float:
+        """Get display duration from config."""
+        return float(self.page_display_time)
+    
+    def validate_config(self) -> bool:
+        """Validate plugin configuration."""
+        # Validate required fields
+        if not self.wmata_api_key:
+            self.logger.error("WMATA API key is required")
+            return False
+        
+        if not self.reference_station:
+            self.logger.error("Reference station is required")
+            return False
+        
+        # Validate numeric ranges
+        if not (10 <= self.refresh_interval <= 300):
+            self.logger.error("Refresh interval must be between 10 and 300 seconds")
+            return False
+        
+        if not (5 <= self.page_display_time <= 60):
+            self.logger.error("Page display time must be between 5 and 60 seconds")
+            return False
+        
+        if not (1 <= self.scroll_speed <= 20):
+            self.logger.error("Scroll speed must be between 1 and 20")
+            return False
+        
+        return True
+    
+    def get_info(self) -> Dict[str, Any]:
+        """Return plugin info for web UI."""
+        info = {
+            "plugin_id": self.plugin_id,
+            "enabled": self.enabled,
+            "reference_station": self.reference_station,
+            "current_page": "EASTBOUND" if self.current_page == 0 else "WESTBOUND",
+            "trains_available": {
+                "east": len(self.train_data.get("east", [])),
+                "west": len(self.train_data.get("west", []))
+            },
+            "last_update": self.last_update.isoformat() if self.last_update else None
+        }
+        return info
+    
     def get_config(self) -> Dict[str, Any]:
         """Get current configuration"""
         return {
             "reference_station": self.reference_station,
-            "wmata_api_key": "***" if self.wmata_api_key else "Not configured"
+            "wmata_api_key": "***" if self.wmata_api_key else "Not configured",
+            "refresh_interval": self.refresh_interval,
+            "page_display_time": self.page_display_time
         }
